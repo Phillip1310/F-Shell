@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>NEON RUNNER - iPad Parkour</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100dvh;
+            overflow: hidden;
+            background-color: #070710;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            touch-action: none;
+            color: #ffffff;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* HUD (Head-Up Display) */
+        #hud {
+            position: fixed;
+            top: max(14px, env(safe-area-inset-top));
+            left: max(20px, env(safe-area-inset-left));
+            right: max(20px, env(safe-area-inset-right));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-group {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .hud-box {
+            background: rgba(15, 18, 35, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 240, 255, 0.35);
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hud-box span.value {
+            color: #00f0ff;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hud-btn {
+            pointer-events: auto;
+            cursor: pointer;
+            background: rgba(15, 18, 35, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            border-radius: 12px;
+            padding: 8px 14px;
+            font-size: 15px;
+            font-weight: 700;
+            transition: transform 0.1s, border-color 0.2s;
+        }
+
+        .hud-btn:active {
+            transform: scale(0.92);
+            border-color: #00f0ff;
+        }
+
+        /* Touch Controls */
+        #touch-controls {
+            position: fixed;
+            bottom: max(24px, env(safe-area-inset-bottom));
+            left: max(28px, env(safe-area-inset-left));
+            right: max(28px, env(safe-area-inset-right));
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .pad-cluster {
+            display: flex;
+            gap: 18px;
+            pointer-events: auto;
+        }
+
+        .touch-btn {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: rgba(20, 25, 45, 0.45);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 2.5px solid rgba(0, 240, 255, 0.45);
+            color: rgba(255, 255, 255, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            font-weight: 800;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.15);
+            transition: transform 0.06s, background 0.06s, border-color 0.06s;
+        }
+
+        .touch-btn small {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+
+        .touch-btn.btn-dash {
+            width: 78px;
+            height: 78px;
+            border-color: rgba(255, 42, 133, 0.55);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 42, 133, 0.2);
+            margin-bottom: 10px;
+        }
+
+        .touch-btn.btn-jump {
+            width: 96px;
+            height: 96px;
+            border-color: rgba(0, 255, 157, 0.55);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(0, 255, 157, 0.2);
+        }
+
+        .touch-btn.active {
+            transform: scale(0.90);
+            background: rgba(0, 240, 255, 0.35);
+            border-color: #ffffff;
+            color: #ffffff;
+        }
+
+        .touch-btn.btn-dash.active {
+            background: rgba(255, 42, 133, 0.45);
+        }
+
+        .touch-btn.btn-jump.active {
+            background: rgba(0, 255, 157, 0.45);
+        }
+
+        /* Modal Screens (Start / Win) */
+        .overlay-screen {
+            position: fixed;
+            inset: 0;
+            background: rgba(7, 7, 16, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .overlay-screen.hidden {
+            display: none;
+        }
+
+        .card {
+            background: rgba(16, 20, 40, 0.9);
+            border: 2px solid rgba(0, 240, 255, 0.4);
+            border-radius: 24px;
+            padding: 32px 44px;
+            max-width: 560px;
+            box-shadow: 0 0 50px rgba(0, 240, 255, 0.2);
+        }
+
+        h1 {
+            font-size: 44px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, #00f0ff, #ff2a85);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        p.subtitle {
+            color: #a5b4fc;
+            font-size: 16px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            text-align: left;
+            margin-bottom: 28px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 16px;
+            border-radius: 14px;
+        }
+
+        .feature-item {
+            font-size: 14px;
+            color: #e2e8f0;
+        }
+
+        .feature-item strong {
+            color: #00f0ff;
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, #00f0ff, #0088ff);
+            color: #050510;
+            border: none;
+            border-radius: 16px;
+            padding: 16px 40px;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 240, 255, 0.4);
+            transition: transform 0.1s;
+        }
+
+        .primary-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Portrait Warning */
+        #portrait-warning {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #070710;
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 30px;
+        }
+
+        #portrait-warning .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: rotatePad 2s infinite ease-in-out;
+        }
+
+        @keyframes rotatePad {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+        }
+
+        @media (orientation: portrait) {
+            #portrait-warning {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Portrait Orientation Warning -->
+    <div id="portrait-warning">
+        <div class="icon">📱🔄</div>
+        <h2>Querformat empfohlen</h2>
+        <p style="color:#a5b4fc; margin-top:10px;">Bitte drehe dein iPad ins Querformat (Landscape), um optimal Parkour zu spielen.</p>
+    </div>
+
+    <!-- Top HUD -->
+    <div id="hud">
+        <div class="hud-group">
+            <div class="hud-box">⏱️ <span class="value" id="hud-time">00:00.0</span></div>
+            <div class="hud-box">💎 <span class="value" id="hud-orbs">0 / 0</span></div>
+            <div class="hud-box">💀 <span class="value" id="hud-deaths">0</span></div>
+        </div>
+        <div class="hud-group">
+            <div class="hud-box" id="hud-zone">Zone 1: Warm-Up</div>
+            <button class="hud-btn" id="btn-checkpoint" title="Zum letzten Checkpoint">↺ Checkpoint</button>
+            <button class="hud-btn" id="btn-restart" title="Level neu starten">⟳ Neustart</button>
+            <button class="hud-btn" id="btn-sound">🔊</button>
+        </div>
+    </div>
+
+    <!-- Main Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Multitouch Controls -->
+    <div id="touch-controls">
+        <!-- Left Thumb: Movement -->
+        <div class="pad-cluster" id="left-pad">
+            <div class="touch-btn" id="btn-left" data-action="left">
+                ◀<small>Links</small>
+            </div>
+            <div class="touch-btn" id="btn-right" data-action="right">
+                ▶<small>Rechts</small>
+            </div>
+        </div>
+        <!-- Right Thumb: Parkour Actions -->
+        <div class="pad-cluster" id="right-pad">
+            <div class="touch-btn btn-dash" id="btn-dash" data-action="dash">
+                ⚡<small>Dash</small>
+            </div>
+            <div class="touch-btn btn-jump" id="btn-jump" data-action="jump">
+                ▲<small>Sprung</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div class="overlay-screen" id="start-screen">
+        <div class="card">
+            <h1>NEON RUNNER</h1>
+            <p class="subtitle">Meistere den Cyber-Parkour! Erreiche das Zielportal so schnell wie möglich.</p>
+            <div class="features-grid">
+                <div class="feature-item">🟢 <strong>Sprung (▲):</strong> Halten für höhere Sprünge</div>
+                <div class="feature-item">🟢 <strong>Doppelsprung:</strong> Nochmals in der Luft tippen</div>
+                <div class="feature-item">🧱 <strong>Wandsprung:</strong> An Wänden gleiten & abspringen</div>
+                <div class="feature-item">⚡ <strong>Air-Dash:</strong> Schneller Sprint durch die Luft</div>
+            </div>
+            <button class="primary-btn" id="btn-start">PARKOUR STARTEN</button>
+        </div>
+    </div>
+
+    <!-- Win Screen -->
+    <div class="overlay-screen hidden" id="win-screen">
+        <div class="card">
+            <h1>ZIEL ERREICHT!</h1>
+            <p class="subtitle">Starke Leistung! Hier ist deine Parkour-Statistik:</p>
+            <div class="features-grid" style="grid-template-columns: 1fr; text-align:center; font-size:18px;">
+                <div class="feature-item">⏱️ Zeit: <strong id="win-time">00:00.0</strong></div>
+                <div class="feature-item">💎 Energie-Orbs: <strong id="win-orbs">0 / 0</strong></div>
+                <div class="feature-item">💀 Fehlversuche: <strong id="win-deaths">0</strong></div>
+            </div>
+            <button class="primary-btn" id="btn-play-again">NOCHMAL SPIELEN (SPEEDRUN)</button>
+        </div>
+    </div>
+
+<script>
+(() => {
+    // ==========================================
+    // 1. WEB AUDIO SYNTHESIZER (No Assets needed)
+    // ==========================================
+    class SoundEffects {
+        constructor() {
+            this.ctx = null;
+            this.muted = false;
+        }
+        init() {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        }
+        play(type) {
+            if (this.muted || !this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            if (type === 'jump') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(580, now + 0.14);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.14);
+                osc.start(now);
+                osc.stop(now + 0.14);
+            } else if (type === 'doublejump') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(340, now);
+                osc.frequency.exponentialRampToValueAtTime(760, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'dash') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + 0.18);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.18);
+                osc.start(now);
+                osc.stop(now + 0.18);
+            } else if (type === 'bounce') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.25);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'orb') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now); // D5
+                osc.frequency.setValueAtTime(880, now + 0.07); // A5
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.22);
+                osc.start(now);
+                osc.stop(now + 0.22);
+            } else if (type === 'checkpoint') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(554.37, now + 0.08);
+                osc.frequency.setValueAtTime(659.25, now + 0.16);
+                gain.gain.setValueAtTime(0.22, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } else if (type === 'death') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(190, now);
+                osc.frequency.linearRampToValueAtTime(45, now + 0.3);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'win') {
+                const notes = [523.25, 659.25, 783.99, 1046.5];
+                notes.forEach((freq, idx) => {
+                    const o = this.ctx.createOscillator();
+                    const g = this.ctx.createGain();
+                    o.type = 'triangle';
+                    o.connect(g);
+                    g.connect(this.ctx.destination);
+                    o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    g.gain.setValueAtTime(0.2, now + idx * 0.1);
+                    g.gain.linearRampToValueAtTime(0.01, now + idx * 0.1 + 0.3);
+                    o.start(now + idx * 0.1);
+                    o.stop(now + idx * 0.1 + 0.3);
+                });
+            }
+        }
+    }
+    const sfx = new SoundEffects();
+
+    // ==========================================
+    // 2. CANVAS & DISPLAY SETUP
+    // ==========================================
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Fixed virtual height so field of view is identical on all iPad models
+    const VIEW_HEIGHT = 768;
+    let viewWidth = 1024;
+    let scaleRatio = 1;
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        scaleRatio = (h * dpr) / VIEW_HEIGHT;
+        viewWidth = (w * dpr) / scaleRatio;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ==========================================
+    // 3. MULTITOUCH & KEYBOARD INPUT HANDLER
+    // ==========================================
+    const keys = { left: false, right: false, jump: false, dash: false };
+    const prevKeys = { left: false, right: false, jump: false, dash: false };
+    const touchState = { left: false, right: false, jump: false, dash: false };
+    const kbState = { left: false, right: false, jump: false, dash: false };
+
+    const touchButtons = [
+        { id: 'btn-left', action: 'left', el: document.getElementById('btn-left') },
+        { id: 'btn-right', action: 'right', el: document.getElementById('btn-right') },
+        { id: 'btn-jump', action: 'jump', el: document.getElementById('btn-jump') },
+        { id: 'btn-dash', action: 'dash', el: document.getElementById('btn-dash') }
+    ];
+
+    function evaluateTouches(e) {
+        if (e.cancelable) e.preventDefault();
+        sfx.init();
+
+        touchState.left = false;
+        touchState.right = false;
+        touchState.jump = false;
+        touchState.dash = false;
+
+        // Check all active touches against button bounding boxes (allows smooth thumb sliding!)
+        for (let i = 0; i < e.touches.length; i++) {
+            const t = e.touches[i];
+            for (const btn of touchButtons) {
+                const rect = btn.el.getBoundingClientRect();
+                // Generous hit-padding (18px) for comfortable iPad thumb play
+                const pad = 18;
+                if (
+                    t.clientX >= rect.left - pad &&
+                    t.clientX <= rect.right + pad &&
+                    t.clientY >= rect.top - pad &&
+                    t.clientY <= rect.bottom + pad
+                ) {
+                    touchState[btn.action] = true;
+                }
+            }
+        }
+
+        for (const btn of touchButtons) {
+            btn.el.classList.toggle('active', touchState[btn.action]);
+        }
+        syncInput();
+    }
+
+    const touchControlsEl = document.getElementById('touch-controls');
+    ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(evt => {
+        touchControlsEl.addEventListener(evt, evaluateTouches, { passive: false });
+    });
+
+    // Prevent unwanted gestures on canvas
+    canvas.addEventListener('touchstart', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+
+    // Keyboard Support (for iPad Magic Keyboard or Desktop testing)
+    window.addEventListener('keydown', e => {
+        sfx.init();
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') kbState.left = true;
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') kbState.right = true;
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') kbState.jump = true;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK' || e.code === 'KeyX') kbState.dash = true;
+        if (e.code === 'KeyR') respawnAtCheckpoint();
+        syncInput();
+    });
+
+    window.addEventListener('keyup', e => {
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') kbState.left = false;
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') kbState.right = false;
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') kbState.jump = false;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK' || e.code === 'KeyX') kbState.dash = false;
+        syncInput();
+    });
+
+    function syncInput() {
+        keys.left = touchState.left || kbState.left;
+        keys.right = touchState.right || kbState.right;
+        keys.jump = touchState.jump || kbState.jump;
+        keys.dash = touchState.dash || kbState.dash;
+    }
+
+    // ==========================================
+    // 4. LEVEL DESIGN (5 Parkour Zones)
+    // ==========================================
+    let platforms = [];
+    let hazards = [];
+    let bouncePads = [];
+    let checkpoints = [];
+    let orbs = [];
+    let hints = [];
+    let finishPortal = { x: 8950, y: 270, w: 60, h: 110 };
+
+    function buildLevel() {
+        platforms = [];
+        hazards = [];
+        bouncePads = [];
+        checkpoints = [];
+        orbs = [];
+        hints = [];
+
+        const addPlat = (x, y, w, h, type = 'normal', moveConfig = null) => {
+            platforms.push({
+                x, y, w, h, type,
+                startX: x, startY: y,
+                vx: 0, vy: 0,
+                move: moveConfig
+            });
+        };
+        const addSpike = (x, y, w, h) => hazards.push({ x, y, w, h });
+        const addBounce = (x, y, w = 70) => bouncePads.push({ x, y, w, h: 16, anim: 0 });
+        const addCP = (x, y, zoneName) => checkpoints.push({ x, y: y - 70, w: 30, h: 70, spawnX: x, spawnY: y - 55, active: false, zoneName });
+        const addOrb = (x, y) => orbs.push({ x, y, r: 12, collected: false, bobOffset: Math.random() * Math.PI * 2 });
+        const addHint = (x, y, text) => hints.push({ x, y, text });
+
+        // --- ZONE 1: WARM-UP & BASICS ---
+        addPlat(50, 560, 480, 120);
+        addHint(260, 440, "Laufe mit ◀ ▶ und springe mit ▲");
+
+        addPlat(630, 520, 240, 160);
+        addOrb(750, 460);
+
+        addPlat(980, 460, 240, 220);
+        addHint(1100, 350, "Tippe ▲ in der Luft nochmal für DOPPELSPRUNG!");
+        addOrb(1100, 390);
+        addOrb(1280, 310);
+
+        addPlat(1380, 380, 340, 300);
+        addSpike(1510, 362, 80, 18);
+        addOrb(1550, 290);
+
+        // --- ZONE 2: WALL-JUMP TOWER ---
+        addPlat(1820, 460, 320, 220);
+        addCP(1900, 460, "Zone 2: Wandsprung-Turm");
+        addHint(2020, 340, "Springe gegen Wände zum Gleiten & Wandsprung!");
+
+        // Wall shaft
+        addPlat(2140, 120, 45, 560, 'wall'); // Left wall
+        addPlat(2400, 180, 45, 500, 'wall'); // Right wall
+        addOrb(2270, 400);
+        addOrb(2270, 280);
+        addOrb(2270, 160);
+
+        // Top of tower
+        addPlat(2400, 180, 420, 45);
+        addSpike(2560, 162, 90, 18);
+        addOrb(2605, 100);
+
+        // Drop & Bounce section
+        addPlat(2940, 560, 320, 120);
+        addBounce(3065, 544, 80);
+        addHint(3100, 430, "Bounce-Pads katapultieren dich hoch!");
+        addOrb(3105, 360);
+        addOrb(3105, 220);
+
+        // --- ZONE 3: DASH CANYON ---
+        addPlat(3350, 260, 340, 420);
+        addCP(3430, 260, "Zone 3: Dash-Schlucht");
+        addHint(3530, 160, "Nutze ⚡ DASH in der Luft für weite Schluchten!");
+
+        // Long dash gaps
+        addPlat(3960, 290, 180, 390);
+        addOrb(3820, 220);
+
+        addPlat(4420, 290, 180, 390);
+        addOrb(4280, 220);
+
+        // Wall + Dash combo
+        addPlat(4850, 100, 45, 420, 'wall');
+        addOrb(4720, 210);
+        addOrb(4980, 260);
+
+        addPlat(5120, 420, 360, 260);
+
+        // --- ZONE 4: CYBER FACTORY (MOVING PLATFORMS) ---
+        addCP(5220, 420, "Zone 4: Cyber-Fabrik");
+        addHint(5320, 320, "Timing ist alles! Kombiniere Sprung & Dash.");
+
+        // Horizontal moving platform 1
+        addPlat(5580, 420, 160, 28, 'moving', { axis: 'x', dist: 240, speed: 0.025, phase: 0 });
+        addOrb(5700, 340);
+
+        // Vertical moving platform
+        addPlat(6060, 440, 150, 28, 'moving', { axis: 'y', dist: -200, speed: 0.03, phase: 1 });
+        addOrb(6135, 280);
+
+        // Mid-air laser block (hazard) + horizontal mover
+        addSpike(6370, 160, 35, 200);
+        addPlat(6320, 430, 150, 28, 'moving', { axis: 'x', dist: 260, speed: 0.028, phase: 2 });
+        addOrb(6490, 380);
+
+        // Bounce out of factory
+        addPlat(6840, 480, 240, 200);
+        addBounce(6930, 464, 80);
+        addOrb(6970, 280);
+
+        // --- ZONE 5: NEON FINALE ---
+        addPlat(7180, 250, 320, 430);
+        addCP(7250, 250, "Zone 5: Neon-Finale");
+        addHint(7350, 150, "Letzter Sprint zum Zielportal!");
+
+        // High-speed parkour sequence
+        addPlat(7640, 340, 130, 30);
+        addOrb(7705, 280);
+
+        addPlat(7920, 420, 130, 30);
+        addBounce(7945, 404, 80);
+        addOrb(7985, 230);
+
+        // Twin wall-jump chimney
+        addPlat(8220, 120, 40, 450, 'wall');
+        addPlat(8450, 120, 40, 450, 'wall');
+        addOrb(8335, 380);
+        addOrb(8335, 220);
+
+        // Final stretch to portal
+        addPlat(8450, 380, 650, 300);
+        addSpike(8610, 362, 70, 18);
+        addSpike(8760, 362, 70, 18);
+        addOrb(8645, 280);
+        addOrb(8795, 280);
+
+        finishPortal = { x: 8960, y: 260, w: 64, h: 120 };
+    }
+
+    // ==========================================
+    // 5. PLAYER & PHYSICS ENGINE
+    // ==========================================
+    const player = {
+        x: 140, y: 460,
+        w: 32, h: 46,
+        vx: 0, vy: 0,
+        facing: 1,
+        onGround: false,
+        onWall: 0, // -1 left wall, 1 right wall
+        jumpsLeft: 2,
+        canDash: true,
+        dashTimer: 0,
+        dashCooldown: 0,
+        coyoteTimer: 0,
+        jumpBuffer: 0,
+        wallJumpLock: 0,
+        scaleX: 1,
+        scaleY: 1,
+        spawnX: 140,
+        spawnY: 460,
+        scarf: []
+    };
+
+    function initScarf() {
+        player.scarf = [];
+        for (let i = 0; i < 7; i++) {
+            player.scarf.push({ x: player.x, y: player.y });
+        }
+    }
+
+    // Particles & Effects
+    let particles = [];
+    let afterimages = [];
+    let screenShake = 0;
+
+    function spawnParticles(x, y, color, count = 10, speed = 5) {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = (0.3 + Math.random() * 0.7) * speed;
+            particles.push({
+                x, y,
+                vx: Math.cos(angle) * spd,
+                vy: Math.sin(angle) * spd - 1,
+                size: 3 + Math.random() * 4,
+                color,
+                alpha: 1,
+                decay: 0.025 + Math.random() * 0.025
+            });
+        }
+    }
+
+    // Game State
+    let gameState = 'start'; // 'start', 'playing', 'won'
+    let elapsedTime = 0;
+    let deaths = 0;
+    let currentZone = "Zone 1: Warm-Up";
+    const camera = { x: 0, y: 0 };
+
+    function resetPlayerTo(x, y) {
+        player.x = x;
+        player.y = y;
+        player.vx = 0;
+        player.vy = 0;
+        player.onGround = false;
+        player.onWall = 0;
+        player.jumpsLeft = 2;
+        player.canDash = true;
+        player.dashTimer = 0;
+        player.scaleX = 1;
+        player.scaleY = 1;
+        initScarf();
+    }
+
+    function respawnAtCheckpoint() {
+        sfx.play('death');
+        screenShake = 12;
+        spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff2a85', 24, 8);
+        deaths++;
+        resetPlayerTo(player.spawnX, player.spawnY);
+        updateHUD();
+    }
+
+    function restartFullGame() {
+        buildLevel();
+        elapsedTime = 0;
+        deaths = 0;
+        currentZone = "Zone 1: Warm-Up";
+        player.spawnX = 140;
+        player.spawnY = 460;
+        resetPlayerTo(140, 460);
+        camera.x = 0;
+        camera.y = 0;
+        gameState = 'playing';
+        updateHUD();
+    }
+
+    // AABB Collision helper
+    function rectOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+        return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    }
+
+    // Fixed 60Hz Physics Step (ensures identical jump height on 60Hz & 120Hz iPads)
+    let globalTick = 0;
+
+    function updatePhysicsStep() {
+        if (gameState !== 'playing') return;
+        globalTick++;
+        elapsedTime += 1 / 60;
+
+        const jumpJustPressed = keys.jump && !prevKeys.jump;
+        const jumpJustReleased = !keys.jump && prevKeys.jump;
+        const dashJustPressed = keys.dash && !prevKeys.dash;
+
+        if (jumpJustPressed) player.jumpBuffer = 8;
+        else if (player.jumpBuffer > 0) player.jumpBuffer--;
+
+        if (player.dashCooldown > 0) player.dashCooldown--;
+        if (player.wallJumpLock > 0) player.wallJumpLock--;
+
+        // 1. Update Moving Platforms
+        for (const p of platforms) {
+            if (p.move) {
+                const prevX = p.x;
+                const prevY = p.y;
+                const offset = Math.sin(globalTick * p.move.speed + p.move.phase) * 0.5 + 0.5;
+                if (p.move.axis === 'x') p.x = p.startX + offset * p.move.dist;
+                if (p.move.axis === 'y') p.y = p.startY + offset * p.move.dist;
+                p.vx = p.x - prevX;
+                p.vy = p.y - prevY;
+            }
+        }
+
+        // 2. Dash Initiation
+        if (dashJustPressed && player.canDash && player.dashCooldown === 0 && player.dashTimer === 0) {
+            player.dashTimer = 10;
+            player.dashCooldown = 22;
+            player.canDash = false;
+            const dir = keys.left ? -1 : (keys.right ? 1 : player.facing);
+            player.facing = dir;
+            player.vx = dir * 15.5;
+            player.vy = 0;
+            player.scaleX = 1.45;
+            player.scaleY = 0.65;
+            screenShake = 6;
+            sfx.play('dash');
+            spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff2a85', 14, 6);
+        }
+
+        // 3. Horizontal Movement & Gravity
+        if (player.dashTimer > 0) {
+            player.dashTimer--;
+            player.vy = 0;
+            afterimages.push({ x: player.x, y: player.y, w: player.w, h: player.h, alpha: 0.65 });
+            if (player.dashTimer === 0) {
+                player.vx *= 0.55; // Smooth exit from dash
+            }
+        } else {
+            const accel = player.onGround ? 1.15 : 0.75;
+            const maxSpeed = 6.8;
+
+            if (player.wallJumpLock === 0) {
+                if (keys.left) {
+                    player.vx = Math.max(player.vx - accel, -maxSpeed);
+                    player.facing = -1;
+                } else if (keys.right) {
+                    player.vx = Math.min(player.vx + accel, maxSpeed);
+                    player.facing = 1;
+                } else {
+                    player.vx *= player.onGround ? 0.76 : 0.90;
+                    if (Math.abs(player.vx) < 0.08) player.vx = 0;
+                }
+            }
+
+            // Gravity & Wall Slide
+            let gravity = 0.64;
+            if (player.onWall !== 0 && player.vy > 0 && ((player.onWall === -1 && keys.left) || (player.onWall === 1 && keys.right))) {
+                player.vy = Math.min(player.vy + 0.25, 2.3); // Slow wall slide
+                if (globalTick % 4 === 0) {
+                    const wx = player.onWall === -1 ? player.x : player.x + player.w;
+                    spawnParticles(wx, player.y + player.h * 0.5, '#00f0ff', 1, 1.5);
+                }
+            } else {
+                player.vy = Math.min(player.vy + gravity, 15);
+            }
+        }
+
+        // 4. Jumping (Ground, Coyote, Wall-Jump, Double-Jump)
+        if (player.jumpBuffer > 0) {
+            if (player.coyoteTimer > 0) {
+                // Normal Jump
+                player.vy = -13.6;
+                player.onGround = false;
+                player.coyoteTimer = 0;
+                player.jumpBuffer = 0;
+                player.jumpsLeft = 1;
+                player.scaleX = 0.72;
+                player.scaleY = 1.32;
+                sfx.play('jump');
+                spawnParticles(player.x + player.w / 2, player.y + player.h, '#00ff9d', 8, 3.5);
+            } else if (player.onWall !== 0) {
+                // Wall Jump!
+                player.vy = -13.0;
+                player.vx = -player.onWall * 8.2;
+                player.facing = -player.onWall;
+                player.wallJumpLock = 9;
+                player.jumpBuffer = 0;
+                player.jumpsLeft = 1; // Keep double jump after wall jump!
+                player.canDash = true; // Refresh dash on wall jump!
+                player.scaleX = 0.7;
+                player.scaleY = 1.35;
+                sfx.play('jump');
+                const wx = player.onWall === -1 ? player.x : player.x + player.w;
+                spawnParticles(wx, player.y + player.h / 2, '#00f0ff', 12, 5);
+            } else if (player.jumpsLeft > 0) {
+                // Double Jump in Mid-Air!
+                player.vy = -12.2;
+                player.jumpsLeft--;
+                player.jumpBuffer = 0;
+                player.dashTimer = 0;
+                if (keys.left) player.vx = -6.5;
+                else if (keys.right) player.vx = 6.5;
+                player.scaleX = 1.3;
+                player.scaleY = 0.75;
+                sfx.play('doublejump');
+                spawnParticles(player.x + player.w / 2, player.y + player.h, '#00f0ff', 12, 4.5);
+            }
+        }
+
+        // Variable jump height (short hop when releasing jump button early)
+        if (jumpJustReleased && player.vy < -4.5) {
+            player.vy *= 0.55;
+        }
+
+        // 5. Move & Collide X
+        player.x += player.vx;
+        player.onWall = 0;
+
+        for (const p of platforms) {
+            if (rectOverlap(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) {
+                if (player.vx > 0) {
+                    player.x = p.x - player.w;
+                    player.vx = 0;
+                    if (!player.onGround) player.onWall = 1;
+                } else if (player.vx < 0) {
+                    player.x = p.x + p.w;
+                    player.vx = 0;
+                    if (!player.onGround) player.onWall = -1;
+                }
+            }
+        }
+
+        // Also check wall proximity by 2px so wall-jumping feels super responsive
+        if (!player.onGround && player.onWall === 0) {
+            for (const p of platforms) {
+                if (rectOverlap(player.x + 2, player.y + 4, player.w, player.h - 8, p.x, p.y, p.w, p.h)) {
+                    player.onWall = 1;
+                } else if (rectOverlap(player.x - 2, player.y + 4, player.w, player.h - 8, p.x, p.y, p.w, p.h)) {
+                    player.onWall = -1;
+                }
+            }
+        }
+
+        // 6. Move & Collide Y
+        const wasOnGround = player.onGround;
+        player.y += player.vy;
+        player.onGround = false;
+
+        for (const p of platforms) {
+            if (rectOverlap(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) {
+                if (player.vy >= 0) {
+                    player.y = p.y - player.h;
+                    if (!wasOnGround && player.vy > 4) {
+                        player.scaleX = 1.28;
+                        player.scaleY = 0.74;
+                        spawnParticles(player.x + player.w / 2, player.y + player.h, '#00f0ff', 6, 2.5);
+                    }
+                    player.vy = 0;
+                    player.onGround = true;
+                    player.coyoteTimer = 7;
+                    player.jumpsLeft = 2;
+                    player.canDash = true;
+
+                    // Carry player with moving platform
+                    if (p.move) {
+                        player.x += p.vx;
+                        player.y += p.vy;
+                    }
+                } else if (player.vy < 0) {
+                    player.y = p.y + p.h;
+                    player.vy = 0;
+                }
+            }
+        }
+
+        if (!player.onGround && player.coyoteTimer > 0) {
+            player.coyoteTimer--;
+        }
+
+        // 7. Bounce Pads
+        for (const bp of bouncePads) {
+            if (bp.anim > 0) bp.anim -= 0.1;
+            if (rectOverlap(player.x, player.y, player.w, player.h, bp.x, bp.y - 6, bp.w, bp.h + 6)) {
+                player.vy = -19.5;
+                player.onGround = false;
+                player.coyoteTimer = 0;
+                player.jumpsLeft = 1;
+                player.canDash = true;
+                player.scaleX = 0.65;
+                player.scaleY = 1.45;
+                bp.anim = 1;
+                sfx.play('bounce');
+                spawnParticles(bp.x + bp.w / 2, bp.y, '#ffe600', 16, 6);
+            }
+        }
+
+        // 8. Orbs Collection
+        for (const orb of orbs) {
+            if (!orb.collected) {
+                const dx = (player.x + player.w / 2) - orb.x;
+                const dy = (player.y + player.h / 2) - orb.y;
+                if (dx * dx + dy * dy < 34 * 34) {
+                    orb.collected = true;
+                    sfx.play('orb');
+                    spawnParticles(orb.x, orb.y, '#00ff9d', 15, 5);
+                    updateHUD();
+                }
+            }
+        }
+
+        // 9. Checkpoints
+        for (const cp of checkpoints) {
+            if (!cp.active && rectOverlap(player.x, player.y, player.w, player.h, cp.x - 20, cp.y - 40, cp.w + 40, cp.h + 40)) {
+                cp.active = true;
+                player.spawnX = cp.spawnX;
+                player.spawnY = cp.spawnY;
+                currentZone = cp.zoneName;
+                sfx.play('checkpoint');
+                spawnParticles(cp.x + cp.w / 2, cp.y + 15, '#00ff9d', 22, 6);
+                updateHUD();
+            }
+        }
+
+        // 10. Hazards & Abyss
+        for (const h of hazards) {
+            if (rectOverlap(player.x + 4, player.y + 4, player.w - 8, player.h - 8, h.x, h.y, h.w, h.h)) {
+                respawnAtCheckpoint();
+                break;
+            }
+        }
+        if (player.y > VIEW_HEIGHT + 160) {
+            respawnAtCheckpoint();
+        }
+
+        // 11. Finish Portal
+        if (rectOverlap(player.x, player.y, player.w, player.h, finishPortal.x, finishPortal.y, finishPortal.w, finishPortal.h)) {
+            gameState = 'won';
+            sfx.play('win');
+            showWinScreen();
+        }
+
+        // 12. Visual Squash & Scarf Physics
+        player.scaleX += (1 - player.scaleX) * 0.22;
+        player.scaleY += (1 - player.scaleY) * 0.22;
+
+        const anchorX = player.x + player.w / 2 - player.facing * 6;
+        const anchorY = player.y + 14;
+        player.scarf[0].x = anchorX;
+        player.scarf[0].y = anchorY;
+        for (let i = 1; i < player.scarf.length; i++) {
+            const prev = player.scarf[i - 1];
+            const curr = player.scarf[i];
+            curr.x += (prev.x - player.facing * 7 - curr.x) * 0.45;
+            curr.y += (prev.y + Math.sin(globalTick * 0.2 + i) * 1.8 - curr.y) * 0.45;
+        }
+
+        // 13. Particles & Afterimages Update
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const pt = particles[i];
+            pt.x += pt.vx;
+            pt.y += pt.vy;
+            pt.alpha -= pt.decay;
+            if (pt.alpha <= 0) particles.splice(i, 1);
+        }
+        for (let i = afterimages.length - 1; i >= 0; i--) {
+            afterimages[i].alpha -= 0.08;
+            if (afterimages[i].alpha <= 0) afterimages.splice(i, 1);
+        }
+
+        if (screenShake > 0) screenShake *= 0.85;
+        if (screenShake < 0.3) screenShake = 0;
+
+        // 14. Smooth Camera Follow with Look-Ahead
+        const targetCamX = player.x - viewWidth * 0.36 + player.vx * 14;
+        const targetCamY = (player.y - VIEW_HEIGHT * 0.55) * 0.35;
+        camera.x += (Math.max(0, targetCamX) - camera.x) * 0.12;
+        camera.y += (Math.max(-140, Math.min(120, targetCamY)) - camera.y) * 0.10;
+
+        // Save previous keys for edge-trigger detection
+        prevKeys.left = keys.left;
+        prevKeys.right = keys.right;
+        prevKeys.jump = keys.jump;
+        prevKeys.dash = keys.dash;
+
+        // Update Timer HUD every 3 frames
+        if (globalTick % 3 === 0) {
+            document.getElementById('hud-time').textContent = formatTime(elapsedTime);
+        }
+    }
+
+    // ==========================================
+    // 6. RENDERING ENGINE
+    // ==========================================
+    function drawGame() {
+        ctx.save();
+        ctx.scale(scaleRatio, scaleRatio);
+
+        // 1. Sky Background Gradient
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, VIEW_HEIGHT);
+        skyGrad.addColorStop(0, '#060714');
+        skyGrad.addColorStop(0.6, '#10142e');
+        skyGrad.addColorStop(1, '#1c1638');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, viewWidth, VIEW_HEIGHT);
+
+        // 2. Parallax Cyber-Sun & Skyline
+        const sunX = viewWidth * 0.72 - camera.x * 0.03;
+        const sunY = 210 - camera.y * 0.05;
+        const sunGrad = ctx.createLinearGradient(0, sunY - 90, 0, sunY + 90);
+        sunGrad.addColorStop(0, '#ff2a85');
+        sunGrad.addColorStop(1, '#ff9900');
+        ctx.fillStyle = sunGrad;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 85, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Distant Parallax Buildings
+        ctx.fillStyle = 'rgba(12, 15, 32, 0.85)';
+        const bgOffset = -(camera.x * 0.15) % 220;
+        for (let x = bgOffset - 220; x < viewWidth + 220; x += 220) {
+            ctx.fillRect(x, 340, 110, 500);
+            ctx.fillRect(x + 120, 410, 85, 500);
+        }
+
+        // Camera & Screen Shake Transform
+        const shakeX = (Math.random() - 0.5) * screenShake;
+        const shakeY = (Math.random() - 0.5) * screenShake;
+        ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
+
+        // 3. Floating Tutorial Hints
+        ctx.font = '700 18px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        for (const h of hints) {
+            if (h.x > camera.x - 400 && h.x < camera.x + viewWidth + 400) {
+                ctx.fillStyle = 'rgba(15, 20, 42, 0.78)';
+                const textW = ctx.measureText(h.text).width + 28;
+                ctx.beginPath();
+                ctx.roundRect(h.x - textW / 2, h.y - 24, textW, 38, 10);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillText(h.text, h.x, h.y);
+            }
+        }
+
+        // 4. Platforms
+        for (const p of platforms) {
+            if (p.x + p.w < camera.x - 100 || p.x > camera.x + viewWidth + 100) continue;
+
+            ctx.fillStyle = '#0d1021';
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+
+            // Neon Border based on platform type
+            if (p.type === 'wall') {
+                ctx.strokeStyle = '#00f0ff';
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+                // Grip stripes on walls
+                ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+                for (let wy = p.y + 20; wy < p.y + p.h - 20; wy += 32) {
+                    ctx.fillRect(p.x + 6, wy, p.w - 12, 6);
+                }
+            } else if (p.type === 'moving') {
+                ctx.strokeStyle = '#ff9900';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+                ctx.fillStyle = '#ff9900';
+                ctx.fillRect(p.x, p.y, p.w, 5);
+            } else {
+                ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+                // Top glowing turf line
+                ctx.fillStyle = '#00f0ff';
+                ctx.fillRect(p.x, p.y, p.w, 5);
+            }
+        }
+
+        // 5. Bounce Pads
+        for (const bp of bouncePads) {
+            const lift = bp.anim * 8;
+            ctx.fillStyle = '#ffe600';
+            ctx.fillRect(bp.x, bp.y - lift, bp.w, bp.h);
+            ctx.fillStyle = '#ff9900';
+            ctx.fillRect(bp.x + 8, bp.y + 6, bp.w - 16, 10);
+        }
+
+        // 6. Hazards (Neon Spikes / Lasers)
+        for (const h of hazards) {
+            ctx.fillStyle = '#ff1744';
+            if (h.h > h.w) {
+                // Vertical Laser Hazard
+                ctx.fillRect(h.x, h.y, h.w, h.h);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(h.x + h.w * 0.35, h.y, h.w * 0.3, h.h);
+            } else {
+                // Spikes row
+                const spikeW = 16;
+                const count = Math.floor(h.w / spikeW);
+                ctx.beginPath();
+                for (let i = 0; i < count; i++) {
+                    const sx = h.x + i * spikeW;
+                    ctx.moveTo(sx, h.y + h.h);
+                    ctx.lineTo(sx + spikeW / 2, h.y);
+                    ctx.lineTo(sx + spikeW, h.y + h.h);
+                }
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        // 7. Checkpoints
+        for (const cp of checkpoints) {
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(cp.x + 12, cp.y, 6, cp.h);
+            const flagColor = cp.active ? '#00ff9d' : '#ff2a85';
+            ctx.fillStyle = flagColor;
+            ctx.beginPath();
+            ctx.moveTo(cp.x + 18, cp.y);
+            ctx.lineTo(cp.x + 54, cp.y + 16);
+            ctx.lineTo(cp.x + 18, cp.y + 32);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // 8. Collectible Energy Orbs
+        for (const orb of orbs) {
+            if (orb.collected) continue;
+            const oy = orb.y + Math.sin(globalTick * 0.08 + orb.bobOffset) * 6;
+            ctx.fillStyle = 'rgba(0, 255, 157, 0.25)';
+            ctx.beginPath();
+            ctx.arc(orb.x, oy, orb.r + 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#00ff9d';
+            ctx.beginPath();
+            ctx.arc(orb.x, oy, orb.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(orb.x - 3, oy - 3, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 9. Finish Portal
+        const pCenterX = finishPortal.x + finishPortal.w / 2;
+        const pCenterY = finishPortal.y + finishPortal.h / 2;
+        const portalGrad = ctx.createRadialGradient(pCenterX, pCenterY, 8, pCenterX, pCenterY, 65);
+        portalGrad.addColorStop(0, '#ffffff');
+        portalGrad.addColorStop(0.4, '#00f0ff');
+        portalGrad.addColorStop(0.8, '#ff2a85');
+        portalGrad.addColorStop(1, 'rgba(255, 42, 133, 0)');
+        ctx.fillStyle = portalGrad;
+        ctx.beginPath();
+        ctx.ellipse(pCenterX, pCenterY, 44, 68, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 10. Dash Afterimages
+        for (const img of afterimages) {
+            ctx.fillStyle = `rgba(255, 42, 133, ${img.alpha * 0.6})`;
+            ctx.beginPath();
+            ctx.roundRect(img.x, img.y, img.w, img.h, 8);
+            ctx.fill();
+        }
+
+        // 11. Player Scarf (Animated Trail)
+        ctx.strokeStyle = player.canDash ? '#ff2a85' : '#64748b';
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (let i = 0; i < player.scarf.length; i++) {
+            const pt = player.scarf[i];
+            if (i === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+
+        // 12. Player Character (with Squash & Stretch)
+        ctx.save();
+        const px = player.x + player.w / 2;
+        const py = player.y + player.h;
+        ctx.translate(px, py);
+        ctx.scale(player.scaleX, player.scaleY);
+
+        // Body
+        ctx.fillStyle = player.canDash ? '#00f0ff' : '#38bdf8';
+        ctx.beginPath();
+        ctx.roundRect(-player.w / 2, -player.h, player.w, player.h, 9);
+        ctx.fill();
+
+        // Cyber Visor / Eyes
+        ctx.fillStyle = '#070710';
+        const visorX = player.facing === 1 ? -2 : -player.w / 2 + 3;
+        ctx.beginPath();
+        ctx.roundRect(visorX, -player.h + 9, 16, 11, 4);
+        ctx.fill();
+
+        // Glowing Eye Pupils
+        ctx.fillStyle = '#00ff9d';
+        const eyeOffset = player.facing === 1 ? 6 : -8;
+        ctx.fillRect(eyeOffset, -player.h + 12, 5, 5);
+
+        ctx.restore();
+
+        // 13. Particles
+        for (const pt of particles) {
+            ctx.globalAlpha = Math.max(0, pt.alpha);
+            ctx.fillStyle = pt.color;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+    }
+
+    // ==========================================
+    // 7. UI & GAME LOOP (60Hz / 120Hz ProMotion Ready)
+    // ==========================================
+    function formatTime(sec) {
+        const mins = Math.floor(sec / 60);
+        const secs = Math.floor(sec % 60);
+        const tenths = Math.floor((sec * 10) % 10);
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
+    }
+
+    function updateHUD() {
+        const collected = orbs.filter(o => o.collected).length;
+        document.getElementById('hud-orbs').textContent = `${collected} / ${orbs.length}`;
+        document.getElementById('hud-deaths').textContent = deaths;
+        document.getElementById('hud-zone').textContent = currentZone;
+    }
+
+    function showWinScreen() {
+        const collected = orbs.filter(o => o.collected).length;
+        document.getElementById('win-time').textContent = formatTime(elapsedTime);
+        document.getElementById('win-orbs').textContent = `${collected} / ${orbs.length}`;
+        document.getElementById('win-deaths').textContent = deaths;
+        document.getElementById('win-screen').classList.remove('hidden');
+    }
+
+    // UI Buttons
+    document.getElementById('btn-start').addEventListener('click', () => {
+        sfx.init();
+        document.getElementById('start-screen').classList.add('hidden');
+        restartFullGame();
+    });
+
+    document.getElementById('btn-play-again').addEventListener('click', () => {
+        sfx.init();
+        document.getElementById('win-screen').classList.add('hidden');
+        restartFullGame();
+    });
+
+    document.getElementById('btn-checkpoint').addEventListener('click', () => {
+        sfx.init();
+        if (gameState === 'playing') respawnAtCheckpoint();
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', () => {
+        sfx.init();
+        if (gameState === 'playing') restartFullGame();
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    btnSound.addEventListener('click', () => {
+        sfx.init();
+        sfx.muted = !sfx.muted;
+        btnSound.textContent = sfx.muted ? '🔇' : '🔊';
+    });
+
+    // Fixed-Timestep Accumulator Loop
+    let lastTime = performance.now();
+    let accumulator = 0;
+    const FIXED_STEP = 1000 / 60;
+
+    buildLevel();
+    initScarf();
+    updateHUD();
+
+    function gameLoop(now) {
+        let delta = now - lastTime;
+        lastTime = now;
+        if (delta > 100) delta = 100; // Prevent spiral of death on tab switch
+
+        accumulator += delta;
+        while (accumulator >= FIXED_STEP) {
+            updatePhysicsStep();
+            accumulator -= FIXED_STEP;
+        }
+
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    }
+    requestAnimationFrame(gameLoop);
+})();
+</script>
+</body>
+</html>
